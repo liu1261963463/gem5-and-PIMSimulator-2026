@@ -40,3 +40,8 @@ typings
 .DS_Store
 ext/pimsim/PIMSimulator/
 gem5-resources/
+util/disk-image-validator/
+*.zip
+build/
+*.img
+*.img.gz
