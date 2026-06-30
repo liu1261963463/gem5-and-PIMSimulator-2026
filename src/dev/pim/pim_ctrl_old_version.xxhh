@@ -1,0 +1,65 @@
+#ifndef __DEV_PIM_PIM_CTRL_HH__
+#define __DEV_PIM_PIM_CTRL_HH__
+
+#include <cstdint>
+
+#include "dev/io_device.hh"
+#include "mem/pim_cmd.hh"
+#include "mem/pimsim.hh"
+#include "params/PIMCtrl.hh"
+#include "sim/eventq.hh"
+
+namespace gem5
+{
+
+namespace memory {
+class PIMSim;
+}
+
+
+  
+class PIMCtrl : public BasicPioDevice
+{
+  private:
+    memory::PIMSim *pimMem;
+
+    uint64_t cmdReg;
+    uint64_t dimReg;
+    uint64_t input0RowReg;
+    uint64_t input1RowReg;
+    uint64_t resultRowReg;
+    uint64_t bankReg;
+
+    uint64_t batchReg;
+    uint64_t inputDimReg;
+    uint64_t outputDimReg;
+
+    uint64_t statusReg;
+    uint64_t lastCyclesReg;
+
+    Tick launchCommand();
+
+    uint64_t readRegister(Addr offset) const;
+    void writeRegister(Addr offset, uint64_t value, Tick &extra_delay);
+
+  static constexpr Addr PIM_REG_SIZE = 0x1000;
+
+
+/***************************************************************************************** */
+
+
+
+/***************************************************************************************** */
+
+  public:
+    PARAMS(PIMCtrl);
+    PIMCtrl(const Params &p);
+
+  protected:
+    Tick read(PacketPtr pkt) override;
+    Tick write(PacketPtr pkt) override;
+};
+
+}
+
+#endif

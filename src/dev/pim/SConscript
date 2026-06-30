@@ -1,0 +1,7 @@
+Import("*")
+
+SimObject("PIMCtrl.py", sim_objects=["PIMCtrl"])
+
+Source("pim_ctrl.cc")
+
+DebugFlag("PIMCtrl")

@@ -1,0 +1,205 @@
+#include "dev/pim/pim_ctrl.hh"
+
+#include "base/logging.hh"
+#include "debug/PIMCtrl.hh"
+#include "mem/packet.hh"
+#include "sim/byteswap.hh"
+
+namespace gem5
+{
+
+static constexpr Addr REG_CMD        = 0x000;
+static constexpr Addr REG_DIM        = 0x008;
+static constexpr Addr REG_INPUT0_ROW = 0x010;
+static constexpr Addr REG_INPUT1_ROW = 0x018;
+static constexpr Addr REG_RESULT_ROW = 0x020;
+static constexpr Addr REG_BANK       = 0x028;
+static constexpr Addr REG_START      = 0x030;
+static constexpr Addr REG_STATUS     = 0x038;
+static constexpr Addr REG_LAST_CYC   = 0x040;
+
+static constexpr Addr REG_BATCH      = 0x048;
+static constexpr Addr REG_INPUT_DIM  = 0x050;
+static constexpr Addr REG_OUTPUT_DIM = 0x058;
+
+/*
+ * STATUS:
+ * bit 0: done
+ * bit 1: busy
+ * bit 2: error
+ */
+static constexpr uint64_t STATUS_DONE  = 0x1;
+static constexpr uint64_t STATUS_BUSY  = 0x2;
+static constexpr uint64_t STATUS_ERROR = 0x4;
+
+PIMCtrl::PIMCtrl(const Params &p)
+    : BasicPioDevice(p, p.pio_size),
+      pimMem(p.pim_mem),
+      cmdReg(0),
+      dimReg(0),
+      input0RowReg(0),
+      input1RowReg(0),
+      resultRowReg(0),
+      bankReg(0),
+      batchReg(1),
+      inputDimReg(0),
+      outputDimReg(0),
+      statusReg(STATUS_DONE),
+      lastCyclesReg(0)
+{
+    panic_if(pimMem == nullptr, "PIMCtrl requires a valid pim_mem parameter");
+}
+
+uint64_t
+PIMCtrl::readRegister(Addr offset) const
+{
+    switch (offset) {
+      case REG_CMD:
+        return cmdReg;
+      case REG_DIM:
+        return dimReg;
+      case REG_INPUT0_ROW:
+        return input0RowReg;
+      case REG_INPUT1_ROW:
+        return input1RowReg;
+      case REG_RESULT_ROW:
+        return resultRowReg;
+      case REG_BANK:
+        return bankReg;
+      case REG_STATUS:
+        return statusReg;
+      case REG_LAST_CYC:
+        return lastCyclesReg;
+      case REG_BATCH:
+        return batchReg;
+      case REG_INPUT_DIM:
+        return inputDimReg;
+      case REG_OUTPUT_DIM:
+        return outputDimReg;
+      default:
+        panic("PIMCtrl: invalid read offset %#x", offset);
+    }
+}
+
+void
+PIMCtrl::writeRegister(Addr offset, uint64_t value, Tick &extra_delay)
+{
+    switch (offset) {
+      case REG_CMD:
+        cmdReg = value;
+        break;
+
+      case REG_DIM:
+        dimReg = value;
+        break;
+
+      case REG_INPUT0_ROW:
+        input0RowReg = value;
+        break;
+
+      case REG_INPUT1_ROW:
+        input1RowReg = value;
+        break;
+
+      case REG_RESULT_ROW:
+        resultRowReg = value;
+        break;
+
+      case REG_BANK:
+        bankReg = value;
+        break;
+
+      case REG_BATCH:
+        batchReg = value;
+        break;
+
+      case REG_INPUT_DIM:
+        inputDimReg = value;
+        break;
+
+      case REG_OUTPUT_DIM:
+        outputDimReg = value;
+        break;
+
+      case REG_START:
+        if (value & 0x1) {
+            extra_delay += launchCommand();
+        }
+        break;
+
+      case REG_STATUS:
+        /*
+         * 允许软件通过写 1 清 done/error。
+         */
+        statusReg &= ~value;
+        break;
+
+      default:
+        panic("PIMCtrl: invalid write offset %#x", offset);
+    }
+}
+
+Tick
+PIMCtrl::launchCommand()
+{
+    memory::PimCommand cmd;
+
+    cmd.opcode = static_cast<memory::PimOpcode>(cmdReg);
+    cmd.dim = dimReg;
+    cmd.input0Row = static_cast<uint32_t>(input0RowReg);
+    cmd.input1Row = static_cast<uint32_t>(input1RowReg);
+    cmd.resultRow = static_cast<uint32_t>(resultRowReg);
+    cmd.bank = static_cast<memory::PimBankSel>(bankReg);
+
+    cmd.batch = static_cast<uint32_t>(batchReg);
+    cmd.inputDim = static_cast<uint32_t>(inputDimReg);
+    cmd.outputDim = static_cast<uint32_t>(outputDimReg);
+
+    DPRINTF(PIMCtrl,
+            "Launch PIM command: opcode=%lu dim=%lu "
+            "input0Row=%lu input1Row=%lu resultRow=%lu bank=%lu\n",
+            cmdReg, dimReg, input0RowReg, input1RowReg, resultRowReg, bankReg);
+
+    statusReg = STATUS_BUSY;
+
+    Tick latency = 0;
+
+    try {
+        latency = pimMem->startPimCommand(cmd);
+        lastCyclesReg = latency;
+        statusReg = STATUS_DONE;
+    } catch (...) {
+        statusReg = STATUS_ERROR;
+        panic("PIMCtrl: PIM command failed");
+    }
+
+    return latency;
+}
+
+Tick
+PIMCtrl::read(PacketPtr pkt)
+{
+    const Addr offset = pkt->getAddr() - pioAddr;
+    const uint64_t value = readRegister(offset);
+
+    pkt->setUintX(value, ByteOrder::little);
+    pkt->makeResponse();
+
+    return pioDelay;
+}
+
+Tick
+PIMCtrl::write(PacketPtr pkt)
+{
+    const Addr offset = pkt->getAddr() - pioAddr;
+    const uint64_t value = pkt->getUintX(ByteOrder::little);
+
+    Tick extra_delay = 0;
+    writeRegister(offset, value, extra_delay);
+
+    pkt->makeResponse();
+
+    return pioDelay + extra_delay;
+}
+
+}
