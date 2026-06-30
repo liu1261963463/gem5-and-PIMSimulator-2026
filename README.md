@@ -90,7 +90,7 @@ or start discussions. To join the mailing list please visit
 <https://www.gem5.org/mailing_lists>.
 
 
-##Example of executing a test command
+## Example of executing a test command
 ./build/X86/gem5.opt \
     --debug-flags=PIMCtrl,PIMSim \
     configs/deprecated/example/se.py \
