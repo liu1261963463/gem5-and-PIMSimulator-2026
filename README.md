@@ -89,6 +89,23 @@ or start discussions. To join the mailing list please visit
 or start discussions. To join the mailing list please visit
 <https://www.gem5.org/mailing_lists>.
 
+
+##Example of executing a test command
+./build/X86/gem5.opt \
+    --debug-flags=PIMCtrl,PIMSim \
+    configs/deprecated/example/se.py \
+    --cpu-type=X86O3CPU \
+    --caches \
+    --cacheline_size=128 \
+    --l1d_size=32kB \
+    --l1i_size=32kB \
+    --mem-size=4GB \
+    --mem-type=PIMSim \
+    --enable-pim-ctrl \
+    --pim-mmio-base=0x100000000 \
+    --pim-se-va=0xFFFF0000 \
+    --cmd=tests/test-progs/pim_runtime/pim_eltwise_test
+
 ## Contributing to gem5
 
 We hope you enjoy using gem5. When appropriate we advise sharing your
