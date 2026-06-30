@@ -1,4 +1,4 @@
-# The gem5 Simulator
+# The gem5 Simulator+ PIMSimulator
 
 This is the code repository for gem5 integrated with the PIMSimulator simulator. It contains the complete source code for both gem5 and PIMSimulator, as well as all tests and regression tests.
 
