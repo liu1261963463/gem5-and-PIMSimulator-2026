@@ -8,7 +8,7 @@ research, encompassing system-level architecture as well as processor
 microarchitecture. It is primarily used to evaluate new hardware designs,
 system software changes, and compile-time and run-time system optimizations.
 
-The main website can be found at <http://www.gem5.org>.
+The main website can be found at <http://www.gem5.org><https://github.com/SAITPublic/PIMSimulator>.
 
 ## Testing status
 
