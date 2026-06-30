@@ -52,3 +52,10 @@ util/disk-image-validator/
 build/
 *.core
 *.log
+util/disk-image-validator/
+*.img
+*.img.gz
+*.zip
+build/
+*.core
+*.log
