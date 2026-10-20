@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+m5out/
+packer
+# For jekyll
+_site
+.jekyll-cache
+Gemfile.lock
+.sass-cache
+
+m5out
+*.pyc
+*~
+.*.swp
+.*.swo
+.vscode

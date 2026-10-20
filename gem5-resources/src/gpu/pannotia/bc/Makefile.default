@@ -1,0 +1,22 @@
+HIP_PATH ?= /opt/rocm
+HIPCC = $(HIP_PATH)/bin/hipcc
+
+EXECUTABLE = bc_hip.default
+CPPSRC = BC.cpp 
+
+# BC has a runtime error in fgets with -O2 and -O3
+OPTS = -O1 -Wno-unused-result
+BIN_DIR ?= ./bin.default
+
+all: $(BIN_DIR)/$(EXECUTABLE)
+
+$(BIN_DIR)/$(EXECUTABLE): $(CPPSRC) ../graph_parser/parse.cpp ../graph_parser/util.cpp $(BIN_DIR)
+	$(HIPCC) $(OPTS) --offload-arch=gfx900,gfx90a,gfx942 $(CXXFLAGS) $(CPPSRC) -o $(BIN_DIR)/$(EXECUTABLE)
+
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
+
+clean:
+	rm -rf $(BIN_DIR)
+
+.PHONY: bc clean
