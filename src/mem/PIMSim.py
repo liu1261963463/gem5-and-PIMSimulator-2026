@@ -41,3 +41,8 @@ class PIMSim(AbstractMemory):
         1,
         "Number of PIM ranks used by PIMKernel"
     )
+    
+    reliable_pim = Param.ReliablePIMEngine(
+        NULL,
+        "Reliable PIM ECC/recovery engine"
+    )

@@ -20,16 +20,22 @@
 namespace gem5
 {
 
+
+
+namespace reliable_pim
+{
+class ReliablePIMEngine;
+}
+
 namespace memory
 {
-
 class PIMSim : public AbstractMemory
 {
   private:
     class MemoryPort : public ResponsePort
     {
       private:
-        PIMSim &mem;
+        PIMSim &mem;      
 
       public:
         MemoryPort(const std::string &name, PIMSim &memory);
@@ -121,6 +127,9 @@ class PIMSim : public AbstractMemory
      * Advance PIMSimulator by one cycle.
      */
     void tick();
+
+    // reliable_pim::ReliablePIMEngine *reliablePim;
+    ::gem5::reliable_pim::ReliablePIMEngine *reliablePim;
 
   public:
     PARAMS(PIMSim);

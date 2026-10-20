@@ -47,6 +47,7 @@ import sys
 import m5
 
 
+
 from m5.defines import buildEnv
 from m5.objects import *
 from m5.params import NULL
@@ -72,8 +73,8 @@ from common.Caches import *
 from common.cpu2000 import *
 from common.FileSystemConfig import config_filesystem
 from ruby import Ruby
-
-
+# 新增
+from common import PIMSimConfig
 
 
 
@@ -146,6 +147,10 @@ warn(
 parser = argparse.ArgumentParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
+# ================================
+# 新增：注册PIMSim / Reliable PIM参数
+# ================================
+PIMSimConfig.addPIMSimOptions(parser)
 
 # #####################################################################
 
@@ -353,19 +358,38 @@ else:
     system.system_port = system.membus.cpu_side_ports
     CacheConfig.config_cache(args, system)
     MemConfig.config_mem(args, system)
-    ####################################################
-    # if args.enable_pim_ctrl:
-    #     if not hasattr(system, "mem_ctrls") or len(system.mem_ctrls) == 0:
-    #         fatal("PIMCtrl requires system.mem_ctrls, but no memory controller was created.")
-
-    #     system.pim_ctrl = PIMCtrl(
-    #         pio_addr=args.pim_mmio_base,
-    #         pio_latency="10ns",
-    #         pim_mem=system.mem_ctrls[0]
-    # )
-
-    #     system.pim_ctrl.pio = system.membus.mem_side_ports
     
+########################################################################################################
+# ============================================================
+# Reliable PIM Engine
+# Must be attached AFTER MemConfig.config_mem(), because
+# system.mem_ctrls is created by MemConfig.
+# ============================================================
+
+if args.mem_type == "PIMSim" and args.reliable_pim:
+
+    print("Configuring ReliablePIMEngine for PIMSim...")
+
+    # system.mem_ctrls 可能是 SimObjectVector，
+    # 因此逐个memory controller检查。
+    for mem_ctrl in system.mem_ctrls:
+
+        if args.mem_type == "PIMSim" and args.reliable_pim:
+
+            for mem_ctrl in system.mem_ctrls:
+
+                mem_ctrl.reliable_pim = ReliablePIMEngine(
+                    enable=True,
+                    ecc_mode=args.pim_ecc_mode,
+                    codeword_flip=args.codeword_flip,
+                    correction_mode=args.correction_mode,
+                    vrt_rate=args.vrt_rate,
+                    random_seed=1,
+                    functional_ecc=False,
+                    rank_correction_latency="63.75ns"
+                )
+########################################################################################################           
+            
     if args.enable_pim_ctrl:
         if args.mem_type != "PIMSim":
             fatal("When --enable-pim-ctrl is used, please also use --mem-type=PIMSim.")

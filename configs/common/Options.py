@@ -143,39 +143,6 @@ def addNoISAOptions(parser):
         help="type of memory to use",
     )
  #####################################################   # 
-    parser.add_argument(
-    "--pimsim-device-config",
-    type=str,
-    default="ini/HBM2_samsung_2M_16B_x64.ini",
-    help="PIMSimulator device configuration file",
-    )
-    
-    parser.add_argument(
-    "--pimsim-system-config",
-    type=str,
-    default="system_hbm.ini",
-    help="PIMSimulator system configuration file",
-    )
-    
-    parser.add_argument(
-    "--pimsim-file-path",
-    type=str,
-    default="ext/pimsim/PIMSimulator",
-    help="Path to PIMSimulator root directory",
-   )
-    
-    parser.add_argument(
-    "--pimsim-trace-file",
-    type=str,
-    default="",
-    help="PIMSimulator trace output file",
-   )
-    parser.add_argument(
-    "--pimsim-debug",
-    action="store_true",
-    help="Enable PIMSimulator debug output",
-   )
-
 
     
  #######################################################   

@@ -1,3 +1,5 @@
+# 在PIMSimConfig.py文件顶部，全局标记
+_added_pim_options = False
 from m5.objects import *
 from m5.util import fatal, warn
 
@@ -9,12 +11,17 @@ def _parse_int(value):
 
 
 def addPIMSimOptions(parser):
+    global _added_pim_options
+    if _added_pim_options:
+        return
+    _added_pim_options = True
     parser.add_argument(
         "--use-pimsim",
         action="store_true",
         default=False,
-        help="Use PIMSimulator-backed PIMSim as the main memory model.",
-    )
+        help="Use PIMSimulator-backed PIMSim as the main memory model."
+    )      
+    
 
     parser.add_argument(
         "--pimsim-device-config",
@@ -88,6 +95,49 @@ def addPIMSimOptions(parser):
             "Use an address outside system.mem_ranges."
         ),
     )
+    
+    parser.add_argument(
+        "--reliable-pim",
+        action="store_true",
+        default=False,
+        help="Enable reliable PIM engine"
+    )
+
+    parser.add_argument(
+        "--pim-ecc-mode",
+        type=str,
+        default="CRC8",
+        choices=[
+            "NONE",
+            "CRC8",
+            "CRC16",
+            "SEC"
+        ],
+        help="Reliable PIM ECC mode"
+    )
+
+    parser.add_argument(
+        "--codeword-flip",
+        action="store_true",
+        default=False,
+        help="Enable Codeword Flip"
+    )
+
+    parser.add_argument(
+        "--correction-mode",
+        type=str,
+        default="HW",
+        choices=["HW", "SW"],
+        help="Rank-level correction mode"
+    )
+
+    parser.add_argument(
+        "--vrt-rate",
+        type=float,
+        default=0.0,
+        help="VRT weak-cell rate"
+    )
+    
 
 
 def configPIMSim(system, args, full_system=False):
@@ -123,8 +173,9 @@ def configPIMSim(system, args, full_system=False):
         pimChannels=args.pimsim_channels,
         pimRanks=args.pimsim_ranks,
     )
+    
 
-    system.pimsim.port = system.membus.mem_side_ports
+   
 
     # Keep a mem_ctrls-style alias for scripts or stats code that expect it.
     system.mem_ctrls = [system.pimsim]
@@ -138,6 +189,29 @@ def configPIMSim(system, args, full_system=False):
             pio_addr=pio_addr,
             pim_mem=system.pimsim,
         )
+        
+        # pimsim.reliable_pim = m5.objects.ReliablePIMEngine(
+        # enable=options.reliable_pim,
+
+        # ecc_mode=
+        #     options.pim_ecc_mode,
+
+        # codeword_flip=
+        #     options.codeword_flip,
+
+        # correction_mode=
+        #     options.correction_mode,
+
+        # vrt_rate=
+        #     options.vrt_rate,
+
+        # random_seed=1,
+
+        # functional_ecc=False,
+
+        # rank_correction_latency=
+        #     "63.75ns",
+        # )
 
         # For initial debugging, attach PIMCtrl directly to the memory bus.
         # This is simpler than routing through iobus/bridge in FS mode.

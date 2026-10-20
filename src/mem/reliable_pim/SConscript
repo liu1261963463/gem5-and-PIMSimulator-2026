@@ -1,0 +1,25 @@
+# -*- mode:python -*-
+
+Import("*")
+
+# ---------------------------------------------------------
+# Reliable PIM SimObject
+# ---------------------------------------------------------
+SimObject(
+    "ReliablePIMEngine.py",
+    sim_objects=["ReliablePIMEngine"]
+)
+
+# ---------------------------------------------------------
+# C++ source files
+# ---------------------------------------------------------
+Source("reliable_pim_engine.cc")
+Source("pim_ecc.cc")
+Source("codeword_state.cc")
+Source("vrt_fault_model.cc")
+Source("rank_correction.cc")
+
+# ---------------------------------------------------------
+# Debug flags
+# ---------------------------------------------------------
+DebugFlag("ReliablePIM")
