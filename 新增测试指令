@@ -1,0 +1,23 @@
+./build/X86/gem5.opt \
+    --outdir=m5out/pim_capture_check \
+    --debug-flags=PIMCtrl,PIMSim,ReliablePIM \
+    --debug-file=pim_capture.log \
+    configs/deprecated/example/se.py \
+    --cpu-type=TimingSimpleCPU \
+    --caches \
+    --cacheline_size=32 \
+    --mem-size=4GB \
+    --mem-type=PIMSim \
+    --enable-pim-ctrl \
+    --pim-mmio-base=0x100000000 \
+    --pim-se-va=0xFFFF0000 \
+    --cmd=tests/test-progs/pim_runtime/pim_eltwise_test \
+    --reliable-pim \
+    --pim-ecc-mode=CRC8 \
+    --correction-mode=HW \
+    --vrt-rate=0\
+   --pimsim-device-config=ini/HBM2_samsung_2M_16B_x64.ini \
+   --pimsim-system-config=system_hbm.ini \
+   --pimsim-cycle=1ns \
+   --pimsim-channels=16 \
+   --pimsim-ranks=1
