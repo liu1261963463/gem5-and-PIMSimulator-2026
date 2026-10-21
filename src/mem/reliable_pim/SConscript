@@ -18,6 +18,7 @@ Source("pim_ecc.cc")
 Source("codeword_state.cc")
 Source("vrt_fault_model.cc")
 Source("rank_correction.cc")
+Source("abstract_chipkill.cc")
 
 # ---------------------------------------------------------
 # Debug flags
