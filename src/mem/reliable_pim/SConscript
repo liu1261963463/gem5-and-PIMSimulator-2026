@@ -20,6 +20,7 @@ Source("vrt_fault_model.cc")
 Source("rank_correction.cc")
 Source("abstract_chipkill.cc")
 Source("codeword_flip_store.cc")
+Source("odd_even_pipeline.cc")
 
 # ---------------------------------------------------------
 # Debug flags
