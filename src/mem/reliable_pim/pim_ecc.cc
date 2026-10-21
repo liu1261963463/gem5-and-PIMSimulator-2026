@@ -48,6 +48,13 @@ namespace gem5
         PimEccEngine::checkCRC8(
             const Codeword128 &cw) const
         {
+            // CRC8容器只能包含8位校验值。
+            // parity类型虽然是uint16_t，但高8位必须为0。
+            if (cw.parityBits != 8 ||
+                (cw.parity & 0xff00u) != 0)
+            {
+                return false;
+            }
             const uint8_t expected =
                 encodeCRC8(cw.data);
 
@@ -90,6 +97,14 @@ namespace gem5
         PimEccEngine::checkFlippedCRC8(
             const Codeword128 &cw) const
         {
+            // 必须先检查格式，再取反。
+            // 否则inverted()可能截掉非法的高8位，
+            // 掩盖原始输入格式错误。
+            if (cw.parityBits != 8 ||
+                (cw.parity & 0xff00u) != 0)
+            {
+                return false;
+            }
             const auto flipped =
                 inverted(cw);
 
