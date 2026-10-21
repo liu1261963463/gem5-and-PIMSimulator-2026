@@ -373,7 +373,14 @@ namespace gem5
             * PIMKernel 的 executeEltwise() 只是生成 PIM transaction，
             * 真正推进 PIMSimulator 时序需要 runPIM()。
             */
-            kernel.runPIM();
+            kernel.runPIM();                      
+
+            // 当前方案要求：任务返回前，底层请求已经排空。
+            // 否则采集窗口结束后仍可能出现未登记的访问。
+            fatal_if(
+                pimsim->hasPendingTransactions(),
+                "PIMSimWrapper: pending transactions remain "
+                "after runPIM; physical-access capture is incomplete.");
 
             uint64_t end_cycle = kernel.getCycle();
 

@@ -83,12 +83,27 @@ namespace gem5
                 p.vrt_rate);
         }
 
+        // uint64_t
+        // ReliablePIMEngine::beginPimCommand(
+        //     const PimAccessInfo &access)
+        // {
+        //     if (!enable)
+        //         return 0;
+
+        //     const uint64_t id =
+        //         nextTxnId++;
         uint64_t
         ReliablePIMEngine::beginPimCommand(
             const PimAccessInfo &access)
         {
             if (!enable)
                 return 0;
+
+            // 任务入口必须提供命令信息。
+            // 物理位置随后由 recordPimAccess() 逐次登记。
+            fatal_if(
+                !access.commandInfoValid,
+                "ReliablePIM: command metadata is missing.");
 
             const uint64_t id =
                 nextTxnId++;

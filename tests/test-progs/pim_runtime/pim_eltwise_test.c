@@ -12,7 +12,8 @@ int main(void)
     uint64_t input0_row = 0;
     uint64_t input1_row = 1;
     uint64_t output_row = 2;
-    uint64_t num_tile = 16;
+    // uint64_t num_tile = 16;
+    uint64_t num_tile = 1024;
 
     printf("[PIM TEST] Start PIM ADD\n");
 
