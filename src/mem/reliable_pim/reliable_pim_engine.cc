@@ -344,39 +344,12 @@ namespace gem5
         }
 
         void
-        ReliablePIMEngine::startCorrection(
-            uint64_t txnId)
+        ReliablePIMEngine::startCorrection(uint64_t txnId)
         {
-            auto &ctx =
-                activeTxns.at(txnId);
-
-            ctx.underCorrection = true;
-
-            ctx.correctionStartTick =
-                curTick();
-
-            currentCorrectionTxn =
-                txnId;
-
-            stats.rankCorrections++;
-
-            DPRINTF(
-                ReliablePIM,
-                "Start correction txn=%lu\n",
-                txnId);
-
-            /*
-            * 第一版：
-            * 使用论文baseline correction latency。
-            *
-            * 第二版：
-            * 这里替换成真正的
-            * rankCorrection.start(...)
-            */
-            schedule(
-                correctionEvent,
-                curTick() +
-                rankCorrectionLatency);
+            (void)txnId;
+            fatal("ReliablePIM: rank correction backend is not connected; "
+                  "actual access targets, rank reads, ECC decode, "
+                  "writeback acknowledgements and PIM retry are required.");
         }
 
         // void
