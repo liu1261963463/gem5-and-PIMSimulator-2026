@@ -31,6 +31,7 @@
 #include "Bank.h"
 
 #include <memory>
+#include <stdexcept>
 
 #include "BusPacket.h"
 
@@ -76,58 +77,170 @@ shared_ptr<Bank::DataStruct> Bank::searchForRow(unsigned row, shared_ptr<DataStr
     return NULL;
 }
 
+// void Bank::read(BusPacket* busPacket)
+// {
+//     shared_ptr<DataStruct> rowHeadNode = rowEntries[busPacket->column];
+//     shared_ptr<DataStruct> foundNode = NULL;
+//     if ((foundNode = Bank::searchForRow(busPacket->row, rowHeadNode)) == NULL)
+//     {
+//     }
+//     else  // found it
+//     {
+//         *(busPacket->data) = foundNode->data;
+//     }
+
+//     if (accessObserver)
+//     accessObserver(*busPacket, false);
+// }
+
 void Bank::read(BusPacket* busPacket)
 {
-    shared_ptr<DataStruct> rowHeadNode = rowEntries[busPacket->column];
-    shared_ptr<DataStruct> foundNode = NULL;
-    if ((foundNode = Bank::searchForRow(busPacket->row, rowHeadNode)) == NULL)
+    // 防止用越界的列号访问rowEntries。
+    if (busPacket->column >= numCols)
     {
+        throw std::out_of_range(
+            "Bank::read: column out of bounds");
     }
-    else  // found it
+
+    shared_ptr<DataStruct> rowHeadNode =
+        rowEntries[busPacket->column];
+
+    shared_ptr<DataStruct> foundNode = NULL;
+
+    if ((foundNode =
+             Bank::searchForRow(
+                 busPacket->row, rowHeadNode)) == NULL)
+    {
+        // 保留原代码行为：
+        // 未找到存储记录时，不在这里额外修改数据。
+    }
+    else
     {
         *(busPacket->data) = foundNode->data;
     }
+
+    // 放在整个if/else之后：
+    // 只要执行了合法列范围内的Bank读取，就通知观察者。
+    if (accessObserver)
+    {
+        accessObserver(*busPacket, false);
+    }
 }
 
+// void Bank::write(const BusPacket* busPacket)
+// {
+//     // TODO: move all the error checking to BusPacket so once we have a bus
+//     // packet,
+//     //            we know the fields are all legal
+
+//     if (busPacket->column >= numCols)
+//     {
+//         ERROR("== Error - Bus Packet column " << busPacket->column << " out of bounds");
+//         exit(-1);
+//     }
+
+//     // head of the list we need to search
+//     shared_ptr<DataStruct> rowHeadNode = rowEntries[busPacket->column];
+//     shared_ptr<DataStruct> foundNode = NULL;
+//     if ((foundNode = Bank::searchForRow(busPacket->row, rowHeadNode)) == NULL)
+//     {
+//         // not found
+//         shared_ptr<DataStruct> newRowNode = make_shared<DataStruct>();
+//         // DataStruct* newRowNode = (DataStruct*)malloc(sizeof(DataStruct));
+
+//         // insert at the head for speed
+//         // TODO: Optimize this data structure for speedier lookups?
+//         newRowNode->row = busPacket->row;
+//         if (busPacket->data)
+//             newRowNode->data = *(busPacket->data);
+//         newRowNode->next = rowHeadNode;
+//         rowEntries[busPacket->column] = newRowNode;
+//     }
+//     else
+//     {
+//         // found it, just plaster in the new data
+//         foundNode->data = *(busPacket->data);
+//         if (DEBUG_BANKS)
+//         {
+//             PRINTN(" -- Bank " << busPacket->bank << " writing to physical address 0x" << hex
+//                                << busPacket->physicalAddress << dec << ":");
+//             busPacket->printData();
+//             PRINT("");
+//         }
+//     }
+    
+//     if (accessObserver)
+//     accessObserver(*busPacket, true);
+// }
 void Bank::write(const BusPacket* busPacket)
 {
-    // TODO: move all the error checking to BusPacket so once we have a bus
-    // packet,
-    //            we know the fields are all legal
-
+    // 保留原来的列范围检查。
     if (busPacket->column >= numCols)
     {
-        ERROR("== Error - Bus Packet column " << busPacket->column << " out of bounds");
+        ERROR(
+            "== Error - Bus Packet column "
+            << busPacket->column
+            << " out of bounds");
+
         exit(-1);
     }
 
-    // head of the list we need to search
-    shared_ptr<DataStruct> rowHeadNode = rowEntries[busPacket->column];
-    shared_ptr<DataStruct> foundNode = NULL;
-    if ((foundNode = Bank::searchForRow(busPacket->row, rowHeadNode)) == NULL)
-    {
-        // not found
-        shared_ptr<DataStruct> newRowNode = make_shared<DataStruct>();
-        // DataStruct* newRowNode = (DataStruct*)malloc(sizeof(DataStruct));
+    shared_ptr<DataStruct> rowHeadNode =
+        rowEntries[busPacket->column];
 
-        // insert at the head for speed
-        // TODO: Optimize this data structure for speedier lookups?
+    shared_ptr<DataStruct> foundNode = NULL;
+
+    if ((foundNode =
+             Bank::searchForRow(
+                 busPacket->row, rowHeadNode)) == NULL)
+    {
+        // 原来没有该行的记录：创建新记录。
+        shared_ptr<DataStruct> newRowNode =
+            make_shared<DataStruct>();
+
         newRowNode->row = busPacket->row;
+
         if (busPacket->data)
+        {
             newRowNode->data = *(busPacket->data);
+        }
+
         newRowNode->next = rowHeadNode;
         rowEntries[busPacket->column] = newRowNode;
     }
     else
     {
-        // found it, just plaster in the new data
+        // 原来已有记录：更新数据。
         foundNode->data = *(busPacket->data);
+
         if (DEBUG_BANKS)
         {
-            PRINTN(" -- Bank " << busPacket->bank << " writing to physical address 0x" << hex
-                               << busPacket->physicalAddress << dec << ":");
+            PRINTN(
+                " -- Bank "
+                << busPacket->bank
+                << " writing to physical address 0x"
+                << hex
+                << busPacket->physicalAddress
+                << dec
+                << ":");
+
             busPacket->printData();
             PRINT("");
         }
     }
+
+    // 放在整个if/else之后：
+    // 新建记录和更新已有记录，都通知一次。
+    if (accessObserver)
+    {
+        accessObserver(*busPacket, true);
+    }
+}
+bool Bank::physicalCaptureAvailable()
+{
+#ifdef NO_STORAGE
+    return false;
+#else
+    return true;
+#endif
 }

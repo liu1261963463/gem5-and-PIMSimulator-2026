@@ -13,6 +13,8 @@
  *   gem5/src/mem/PIMSim.py
  */
 
+#include <utility>
+
 #include "mem/pimsim.hh"
 #include "mem/reliable_pim/reliable_pim_engine.hh"
 #include "mem/reliable_pim/reliable_pim_types.hh"
@@ -185,9 +187,74 @@ PIMSim::submitPIMOp(const PIMOp &op)
             static_cast<unsigned long long>(reliableTxnId));
     }
 
-    // 保留原工程对PIM内部回调的处理范围。
+    // // 保留原工程对PIM内部回调的处理范围。
+    // pimOpInProgress = true;
+    // const uint64_t pim_cycles = wrapper.executePIM(op);
+    // pimOpInProgress = false;
+
+    // ============================================================
+    // 为本次PIM命令准备实际Bank访问的接收函数。
+    // Engine关闭时，sink为空，不登记可靠性访问。
+    // ============================================================
+    PIMAccessSink sink;
+
+    if (reliableEnabled)
+    {
+        sink = [this, reliableTxnId](const PIMBankAccess &a)
+        {
+            // 当前可靠性模块使用32位Bank位图，
+            // 每条记录对应一个32B的Bank访问。
+            fatal_if(
+                a.bank >= 32 || a.bytes != 32,
+                "ReliablePIM requires bank < 32 "
+                "and a 32-byte BurstType");
+
+            // 为这一次真实Bank访问创建独立的位置描述。
+            ::gem5::reliable_pim::PimAccessInfo access{};
+
+            // Channel与Rank来自底层实际Bank所属的对象。
+            access.channel = a.channel;
+            access.rank = a.rank;
+
+            // 当前采用Bank级逻辑保护域，尚未细分真实Chip。
+            access.chip = 0;
+
+            // Bank编号来自实际被调用的Bank实例。
+            access.bank = a.bank;
+
+            // Row和Column来自该次Bank读写实际使用的坐标。
+            access.row = a.row;
+            access.column = a.column;
+
+            // 每次回调对应一个实际Bank。
+            access.activeBanks.reset();
+            access.activeBanks.set(a.bank);
+
+            // false表示读，true表示写。
+            access.isWrite = a.isWrite;
+
+            // 触发地址仅用于调试。
+            // 广播时，它不一定是当前Bank操作数的线性地址。
+            access.triggerAddr = a.triggerAddress;
+            access.addrValid = false;
+
+            // 实际Channel/Rank/Bank/Row/Column已经取得。
+            access.physicalLocationValid = true;
+
+            // 将这次实际访问登记到所属PIM命令。
+            reliablePim->recordPimAccess(
+                reliableTxnId, access);
+        };
+    }
+
+    // ============================================================
+    // 执行原有PIM操作，并把访问接收函数交给wrapper。
+    // ============================================================
     pimOpInProgress = true;
-    const uint64_t pim_cycles = wrapper.executePIM(op);
+
+    const uint64_t pim_cycles =
+        wrapper.executePIM(op, std::move(sink));
+
     pimOpInProgress = false;
 
     if (reliableEnabled)
@@ -218,121 +285,8 @@ PIMSim::submitPIMOp(const PIMOp &op)
 
     return cyclesToTicks(Cycles(cycles));
 }
-// Tick
-// PIMSim::submitPIMOp(const PIMOp &op)
-// {
-//     /*
-//      * PIMCtrl/MMIO-triggered PIM kernels issue PIMSimulator-internal memory
-//      * transactions. Their completion callbacks are not responses to gem5 CPU
-//      * packets, so readComplete()/writeComplete() must not look for a PacketPtr
-//      * in outstandingReads/outstandingWrites while this call is active.
-//      */
-        
-// uint64_t reliableTxnId = 0;
-
-// if (reliablePim && reliablePim->enabled())
-// {
-//     // 1. 创建PimAccessInfo
-//     gem5::reliable_pim::PimAccessInfo accessInfo{};
-
-//     // 2. 填写PIM命令信息
-//     accessInfo.opcode =
-//         static_cast<uint32_t>(op.opcode);
-
-//     // 3. 填写操作数地址
-//     accessInfo.src0 = op.src0;
-//     accessInfo.src1 = op.src1;
-//     accessInfo.dst = op.dst;
-//     // 4. 填写计算规模
-//     accessInfo.numTile = op.numTile;
-
-//     accessInfo.m = op.m;
-//     accessInfo.n = op.n;
-//     accessInfo.k = op.k;
-
-//     accessInfo.issueTick = curTick();
-
-//     // 6. 标记命令信息已经填写
-//     accessInfo.commandInfoValid = true;
-//     // 7. 尚未完成DRAM物理地址译码
-//     accessInfo.physicalLocationValid = false;
-
-//     // 8. DPRINTF：检查传入的PIM命令信息
-//     DPRINTF(PIMSim,
-//         "ReliablePIM access: "
-//         "opcode=%u "
-//         "src0=%#llx src1=%#llx dst=%#llx "
-//         "numTile=%llu "
-//         "m=%u n=%u k=%u "
-//         "issueTick=%llu "
-//         "commandValid=%d physicalValid=%d\n",
-//         accessInfo.opcode,
-//         static_cast<unsigned long long>(accessInfo.src0),
-//         static_cast<unsigned long long>(accessInfo.src1),
-//         static_cast<unsigned long long>(accessInfo.dst),
-//         static_cast<unsigned long long>(accessInfo.numTile),
-//         accessInfo.m,
-//         accessInfo.n,
-//         accessInfo.k,
-//         static_cast<unsigned long long>(accessInfo.issueTick),
-//         accessInfo.commandInfoValid,
-//         accessInfo.physicalLocationValid
-//     );
-
-//     // 9. 创建可靠性事务
-//     reliableTxnId =
-//         reliablePim->beginPimCommand(accessInfo);
-
-//     // 10. DPRINTF：检查事务是否创建
-//     DPRINTF(PIMSim,
-//         "ReliablePIM begin: txnId=%llu\n",
-//         static_cast<unsigned long long>(reliableTxnId)
-//     );
-// }
-
-      
-//     pimOpInProgress = true;   
-//     const uint64_t pim_cycles = wrapper.executePIM(op);
-//     pimOpInProgress = false;
-
-
-//         if (reliablePim &&
-//         reliablePim->enabled())
-//     {
-//         auto result =
-//             reliablePim->
-//             completePimCommand(reliableTxnId);
-
-//         DPRINTF(PIMSim,
-//         "ReliablePIM complete: "
-//         "txnId=%llu result=%d pim_cycles=%llu\n",
-//         static_cast<unsigned long long>(reliableTxnId),
-//         static_cast<int>(result),
-//         static_cast<unsigned long long>(pim_cycles)  
-//         );
-
-//         if (result ==
-//            gem5:: reliable_pim::
-//             PimCheckResult::
-//             STALL_FOR_CORRECTION)
-//         {
-//             /*
-//             * 当前第一版先只打印/返回。
-//             *
-//             * 后面再加入真正Retry。
-//             */
-//             return 0;
-//         }
-//     }
-
-//     /*
-//      * If PIMSimulator does not report a valid cycle count, use one cycle to
-//      * avoid completing the MMIO operation at zero latency.
-//      */
-//     const uint64_t cycles = pim_cycles == 0 ? 1 : pim_cycles;
-
-//     return cyclesToTicks(Cycles(cycles));
-// }
+ 
+ 
 
 
 void

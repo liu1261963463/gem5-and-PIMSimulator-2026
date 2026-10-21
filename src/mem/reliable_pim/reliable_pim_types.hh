@@ -62,6 +62,8 @@ struct PimAccessInfo
 {
     // ===== 第一部分：原有物理位置信息 =====
     Addr addr = 0;
+    bool addrValid = false;
+    Addr triggerAddr = 0;
 
     uint32_t channel = 0;
     uint32_t rank = 0;
@@ -152,6 +154,10 @@ struct PimTxnContext
     uint64_t txnId = 0;
 
     PimAccessInfo access;
+
+    // 当前命令实际发生的Bank读写次数。
+    uint64_t bankReads = 0;
+    uint64_t bankWrites = 0;
 
     uint32_t retryCount = 0;
 

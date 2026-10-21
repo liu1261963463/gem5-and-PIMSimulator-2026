@@ -41,6 +41,11 @@ class ReliablePIMEngine :
     completePimCommand(
         uint64_t txnId);
 
+    // 登记当前命令的一次实际Bank访问。
+    void recordPimAccess(
+        uint64_t txnId,
+        const PimAccessInfo &access);
+
     // 由PIMSim注册callback
     void
     setRetryCallback(
@@ -113,6 +118,10 @@ class ReliablePIMEngine :
 
         statistics::Scalar pimCommands;
 
+        statistics::Scalar physicalReads;
+        statistics::Scalar physicalWrites;
+        statistics::Scalar physicalCodewordVisits;
+        
         statistics::Scalar crcChecks;
         statistics::Scalar crcAlerts;
 

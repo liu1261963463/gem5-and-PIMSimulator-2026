@@ -31,8 +31,10 @@
 #ifndef BANK_H
 #define BANK_H
 
+#include <functional>
 #include <iostream>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "BankState.h"
@@ -40,6 +42,7 @@
 #include "BusPacket.h"
 #include "SimulatorObject.h"
 #include "SystemConfiguration.h"
+
 
 namespace DRAMSim
 {
@@ -51,6 +54,7 @@ class Bank
         BurstType data;
         std::shared_ptr<struct _DataStruct> next;
     } DataStruct;
+        
 
   public:
     // functions
@@ -60,12 +64,28 @@ class Bank
     void write(const BusPacket* busPacket);
     BankState currentState;
 
+    // 检查底层库是否启用了存储数据访问路径。
+    static bool physicalCaptureAvailable();
+
+    // 回调参数：
+    // 第一个参数是本次访问使用的BusPacket；
+    // 第二个参数false表示读，true表示写。
+    using AccessObserver =
+        std::function<void(const BusPacket&, bool)>;
+
+    // wrapper通过这个接口为当前Bank设置回调。
+    void setAccessObserver(AccessObserver cb)
+    {
+        accessObserver = std::move(cb);
+    }
+
   private:
     // private member
     std::vector<std::shared_ptr<DataStruct>> rowEntries;
     ostream& dramsimLog;
     static std::shared_ptr<DataStruct> searchForRow(unsigned row, std::shared_ptr<DataStruct> head);
     unsigned numCols;
+    AccessObserver accessObserver;
 };
 }  // namespace DRAMSim
 
