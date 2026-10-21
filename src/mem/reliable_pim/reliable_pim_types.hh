@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "base/types.hh"
+#include "mem/reliable_pim/pim_alert.hh"
 
 namespace gem5
 {
@@ -161,7 +162,7 @@ struct PimTxnContext
 
     uint32_t retryCount = 0;
 
-    bool alertRaised = false;
+    PimAlertLatch alert;
     bool underCorrection = false;
 
     Tick issueTick = 0;

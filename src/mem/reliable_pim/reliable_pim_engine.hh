@@ -46,6 +46,14 @@ class ReliablePIMEngine :
         uint64_t txnId,
         const PimAccessInfo &access);
 
+    // Logical engine-wide aggregate: false means ALERT_n asserted.
+    bool alertNHigh() const;
+
+    // Only submit actual, supported decoder results here.
+    // Caller must honor STALL_FOR_CORRECTION before using bad data.
+    PimCheckResult reportCrcResult(
+        uint64_t txnId, const DualCRC8Result &decoded);
+
     // 由PIMSim注册callback
     void
     setRetryCallback(
@@ -124,6 +132,7 @@ class ReliablePIMEngine :
         
         statistics::Scalar crcChecks;
         statistics::Scalar crcAlerts;
+        statistics::Scalar alertAssertions;
 
         statistics::Scalar rankCorrections;
 

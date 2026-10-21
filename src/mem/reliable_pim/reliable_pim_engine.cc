@@ -114,6 +114,9 @@ namespace gem5
                 !access.commandInfoValid,
                 "ReliablePIM: command metadata is missing.");
 
+            fatal_if(!alertNHigh(),
+                "ReliablePIM: unresolved ALERT_n blocks new commands.");
+
             const uint64_t id =
                 nextTxnId++;
 
@@ -139,6 +142,53 @@ namespace gem5
                     .to_string());
 
             return id;
+        }
+
+        bool
+        ReliablePIMEngine::alertNHigh() const
+        {
+            for (const auto &entry : activeTxns)
+                if (entry.second.alert.pending())
+                    return false;
+            return true;
+        }
+
+        PimCheckResult
+        ReliablePIMEngine::reportCrcResult(
+            uint64_t txnId, const DualCRC8Result &decoded)
+        {
+            fatal_if(!enable, "ReliablePIM: CRC report while disabled.");
+            auto it = activeTxns.find(txnId);
+            fatal_if(it == activeTxns.end(),
+                "ReliablePIM: CRC report for unknown transaction.");
+            fatal_if(!decoded.supported || !decoded.formatValid,
+                "ReliablePIM: invalid CRC report is not a memory alert.");
+
+            const auto expected =
+                decoded.normalValid && !decoded.flippedValid
+                    ? DecodeResult::NORMAL
+                    : (!decoded.normalValid && decoded.flippedValid
+                        ? DecodeResult::FLIPPED : DecodeResult::ALERT);
+            fatal_if(decoded.result != expected,
+                "ReliablePIM: inconsistent dual CRC result.");
+
+            ++stats.crcChecks;
+            const bool detected = decoded.result == DecodeResult::ALERT;
+            if (detected)
+                ++stats.crcAlerts;
+
+            const bool wasHigh = alertNHigh();
+            it->second.alert.observe(detected);
+            if (wasHigh && !alertNHigh())
+            {
+                ++stats.alertAssertions;
+                DPRINTF(ReliablePIM,
+                    "ALERT_N_ASSERT txn=%llu level=0\n",
+                    static_cast<unsigned long long>(txnId));
+            }
+            return it->second.alert.pending()
+                ? PimCheckResult::STALL_FOR_CORRECTION
+                : PimCheckResult::SUCCESS;
         }
 
         CodewordKey
@@ -261,6 +311,15 @@ namespace gem5
                 "ReliablePIM: unknown transaction");
 
             const auto &ctx = it->second;
+
+            // Keep the transaction and alarm until real recovery exists.
+            if (ctx.alert.pending())
+            {
+                DPRINTF(ReliablePIM,
+                    "ALERT_N_PENDING txn=%llu level=0\n",
+                    static_cast<unsigned long long>(txnId));
+                return PimCheckResult::STALL_FOR_CORRECTION;
+            }
 
             // 2. 支持的PIM测试应当产生实际Bank访问。
             // 没有访问时明确报错，避免空检查被当成成功。
@@ -438,12 +497,17 @@ namespace gem5
             ADD_STAT(
                 crcChecks,
                 statistics::units::Count::get(),
-                "Number of CRC checks"),
+                "Number of supported codeword decode reports"),
 
             ADD_STAT(
                 crcAlerts,
                 statistics::units::Count::get(),
-                "Number of CRC alerts"),
+                "Number of decode reports classified ALERT"),
+
+            ADD_STAT(
+                alertAssertions,
+                statistics::units::Count::get(),
+                "Number of engine aggregate ALERT_n high-to-low transitions"),
 
             ADD_STAT(
                 rankCorrections,
