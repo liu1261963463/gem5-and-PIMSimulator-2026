@@ -68,38 +68,69 @@ namespace reliable_pim
             return ratio < vrtRate;
         }
 
+        // void
+        // VrtFaultModel::apply(
+        //     Codeword128 &cw,
+        //     const CodewordKey &key,
+        //     const CodewordState &state) const
+        // {
+        //     for (unsigned bit = 0;
+        //         bit < 128;
+        //         ++bit)
+        //     {
+        //         if (!isWeakCell(key, bit))
+        //             continue;
+
+        //         const unsigned byte = bit / 8;
+        //         const unsigned offset = bit % 8;
+
+        //         bool storedValue =
+        //             (cw.data[byte] >> offset) & 0x1;
+
+        //         // 已经Codeword Flip后，
+        //         // 物理cell保存的极性发生变化
+        //         if (state.physicalFlipped)
+        //         {
+        //             storedValue = !storedValue;
+        //         }
+
+        //         // 第一版模型：1更容易丢失为0
+        //         if (storedValue)
+        //         {
+        //             cw.data[byte] &=
+        //                 static_cast<uint8_t>(
+        //                     ~(1u << offset));
+        //         }
+        //     }
+        // }
         void
         VrtFaultModel::apply(
             Codeword128 &cw,
-            const CodewordKey &key,
-            const CodewordState &state) const
+            const CodewordKey &key) const
         {
-            for (unsigned bit = 0;
-                bit < 128;
-                ++bit)
+            // cw包含实际存储位。
+            // 如果码字已经翻转，翻转必须已经体现在cw中。
+            //
+            // 当前简化模型只对128个数据位注入故障，
+            // 暂不对8个CRC位注入VRT故障。
+            for (unsigned bit = 0; bit < 128; ++bit)
             {
                 if (!isWeakCell(key, bit))
+                {
                     continue;
+                }
 
                 const unsigned byte = bit / 8;
                 const unsigned offset = bit % 8;
 
-                bool storedValue =
-                    (cw.data[byte] >> offset) & 0x1;
+                const uint8_t mask =
+                    static_cast<uint8_t>(1u << offset);
 
-                // 已经Codeword Flip后，
-                // 物理cell保存的极性发生变化
-                if (state.physicalFlipped)
-                {
-                    storedValue = !storedValue;
-                }
-
-                // 第一版模型：1更容易丢失为0
-                if (storedValue)
+                // 弱单元实际存储1时，发生1→0错误。
+                if ((cw.data[byte] & mask) != 0)
                 {
                     cw.data[byte] &=
-                        static_cast<uint8_t>(
-                            ~(1u << offset));
+                        static_cast<uint8_t>(~mask);
                 }
             }
         }

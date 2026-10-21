@@ -69,11 +69,20 @@ namespace gem5
 
             stats(this)
         { 
+            // fatal_if(
+            //     enable && (p.vrt_rate != 0.0 || functionalEcc),
+            //     "This physical-access capture stage requires "
+            //     "vrt_rate=0 and functional_ecc=false; "
+            //     "fault recovery is not integrated");
             fatal_if(
-                enable && (p.vrt_rate != 0.0 || functionalEcc),
-                "This physical-access capture stage requires "
-                "vrt_rate=0 and functional_ecc=false; "
-                "fault recovery is not integrated");
+            enable &&
+                (p.vrt_rate != 0.0 ||
+                functionalEcc ||
+                codewordFlipEnabled),
+            "This physical-access capture stage requires "
+            "vrt_rate=0, functional_ecc=false and "
+            "codeword_flip=false; "
+            "fault recovery is not integrated");
                 
             DPRINTF(
                 ReliablePIM,
@@ -236,129 +245,7 @@ namespace gem5
                 static_cast<unsigned long long>(access.triggerAddr));
         }
 
-        // PimCheckResult
-        // ReliablePIMEngine::completePimCommand(
-        //     uint64_t txnId)
-        // {
-        //     if (!enable)
-        //         return PimCheckResult::SUCCESS;
-
-        //     auto it =
-        //         activeTxns.find(txnId);
-
-        //     if (it == activeTxns.end())
-        //     {
-        //         fatal(
-        //             "Unknown ReliablePIM txn %lu",
-        //             txnId);
-        //     }
-
-        //     auto &ctx = it->second;
-
-        //     // 未取得实际物理位置时，只完成命令接线验证。
-        //     // 不创建码字状态，也不增加crcChecks。
-        //     if (!ctx.access.physicalLocationValid)
-        //     {
-        //         warn_once(
-        //             "ReliablePIM: physical location is unavailable; "
-        //             "skipping reliability checks. "
-        //             "This run validates command integration only.");
-
-        //         activeTxns.erase(it);
-
-        //         return PimCheckResult::SUCCESS;
-        //     }
-
-        //     // 已声明位置有效，却没有任何参与Bank，属于接线错误。
-        //     // fatal_if(
-        //     //     ctx.access.activeBanks.none(),
-        //     //     "ReliablePIM: physicalLocationValid is true, "
-        //     //     "but activeBanks is empty.");
-        //     // 等真实地址映射接好、开始正式可靠性实验时，建议将上述“警告并跳过”分支换成严格检查：
-        //     fatal_if(
-        //         !ctx.access.physicalLocationValid,
-        //         "ReliablePIM: reliability evaluation requires "
-        //         "a valid physical location.");
-
-        //     bool detectedError = false;
-
-        //     for (unsigned bank = 0;
-        //         bank < 32;
-        //         ++bank)
-        //     {
-        //         if (!ctx.access.activeBanks.test(bank))
-        //             continue;
-
-        //         // 32B = 两个128-bit ECC block
-        //         for (unsigned sub = 0;
-        //             sub < 2;
-        //             ++sub)
-        //         {
-        //             const auto key =
-        //                 makeCodewordKey(
-        //                     ctx.access,
-        //                     bank,
-        //                     sub);
-
-        //             auto &state =
-        //                 codewordStates.get(key);
-
-        //             stats.crcChecks++;
-
-        //             /*
-        //             * 第一版 timing 模型：
-        //             *
-        //             * 如果当前128 bits中出现VRT weak cell，
-        //             * 且没有被Codeword Flip mask，
-        //             * 就认为bank CRC报警。
-        //             *
-        //             * 后续functional模式再真正调用
-        //             * ecc.dualDecode(codeword)。
-        //             */
-
-        //             for (unsigned bit = 0;
-        //                 bit < 128;
-        //                 ++bit)
-        //             {
-        //                 if (!vrt.isWeakCell(
-        //                         key, bit))
-        //                     continue;
-
-        //                 // Codeword Flip以后，
-        //                 // 第一版假设该单个VRT被mask
-        //                 if (state.physicalFlipped)
-        //                     continue;
-
-        //                 detectedError = true;
-
-        //                 break;
-        //             }
-
-        //             if (detectedError)
-        //                 break;
-        //         }
-
-        //         if (detectedError)
-        //             break;
-        //     }
-
-        //     if (!detectedError)
-        //     {
-        //         activeTxns.erase(txnId);
-
-        //         return PimCheckResult::SUCCESS;
-        //     }
-
-        //     stats.crcAlerts++;
-
-        //     ctx.alertRaised = true;
-
-        //     startCorrection(txnId);
-
-        //     return
-        //         PimCheckResult::
-        //         STALL_FOR_CORRECTION;
-        // }
+        
 
         PimCheckResult
         ReliablePIMEngine::completePimCommand(uint64_t txnId)
@@ -433,84 +320,93 @@ namespace gem5
                 rankCorrectionLatency);
         }
 
+        // void
+        // ReliablePIMEngine::finishCorrection()
+        // {
+        //     const uint64_t txnId =
+        //         currentCorrectionTxn;
+
+        //     auto it =
+        //         activeTxns.find(txnId);
+
+        //     if (it == activeTxns.end())
+        //         return;
+
+        //     auto &ctx = it->second;
+
+        //     stats.correctionTicks +=
+        //         curTick() -
+        //         ctx.correctionStartTick;
+
+        //     /*
+        //     * 第一版简单处理：
+        //     *
+        //     * 找到第一个active bank，
+        //     * 对它的两个128-bit block执行Flip。
+        //     *
+        //     * 第二版RankCorrectionFSM会真正告诉我们
+        //     * 哪个bank/chip发生故障。
+        //     */
+
+        //     if (codewordFlipEnabled)
+        //     {
+        //         for (unsigned bank = 0;
+        //             bank < 32;
+        //             ++bank)
+        //         {
+        //             if (!ctx.access
+        //                     .activeBanks
+        //                     .test(bank))
+        //             {
+        //                 continue;
+        //             }
+
+        //             for (unsigned sub = 0;
+        //                 sub < 2;
+        //                 ++sub)
+        //             {
+        //                 const auto key =
+        //                     makeCodewordKey(
+        //                         ctx.access,
+        //                         bank,
+        //                         sub);
+
+        //                 codewordStates.flip(key);
+
+        //                 stats.codewordFlips++;
+        //             }
+
+        //             // 第一版只处理第一个fault bank
+        //             break;
+        //         }
+        //     }
+
+        //     ctx.retryCount++;
+
+        //     stats.pimRetries++;
+
+        //     ctx.underCorrection = false;
+
+        //     DPRINTF(
+        //         ReliablePIM,
+        //         "Correction complete "
+        //         "txn=%lu retry=%u\n",
+        //         txnId,
+        //         ctx.retryCount);
+
+        //     if (retryCallback)
+        //     {
+        //         retryCallback(txnId);
+        //     }
+        // }
+
         void
         ReliablePIMEngine::finishCorrection()
         {
-            const uint64_t txnId =
-                currentCorrectionTxn;
-
-            auto it =
-                activeTxns.find(txnId);
-
-            if (it == activeTxns.end())
-                return;
-
-            auto &ctx = it->second;
-
-            stats.correctionTicks +=
-                curTick() -
-                ctx.correctionStartTick;
-
-            /*
-            * 第一版简单处理：
-            *
-            * 找到第一个active bank，
-            * 对它的两个128-bit block执行Flip。
-            *
-            * 第二版RankCorrectionFSM会真正告诉我们
-            * 哪个bank/chip发生故障。
-            */
-
-            if (codewordFlipEnabled)
-            {
-                for (unsigned bank = 0;
-                    bank < 32;
-                    ++bank)
-                {
-                    if (!ctx.access
-                            .activeBanks
-                            .test(bank))
-                    {
-                        continue;
-                    }
-
-                    for (unsigned sub = 0;
-                        sub < 2;
-                        ++sub)
-                    {
-                        const auto key =
-                            makeCodewordKey(
-                                ctx.access,
-                                bank,
-                                sub);
-
-                        codewordStates.flip(key);
-
-                        stats.codewordFlips++;
-                    }
-
-                    // 第一版只处理第一个fault bank
-                    break;
-                }
-            }
-
-            ctx.retryCount++;
-
-            stats.pimRetries++;
-
-            ctx.underCorrection = false;
-
-            DPRINTF(
-                ReliablePIM,
-                "Correction complete "
-                "txn=%lu retry=%u\n",
-                txnId,
-                ctx.retryCount);
-
-            if (retryCallback)
-            {
-                retryCallback(txnId);
-            }
+            fatal(
+                "ReliablePIM: recovery is not implemented; "
+                "real correction and physical codeword writeback "
+                "must precede retry.");
         }
 
         ReliablePIMEngine::

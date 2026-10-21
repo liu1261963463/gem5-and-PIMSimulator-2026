@@ -42,8 +42,8 @@ class CodewordStateTable
     bool
     exists(const CodewordKey &key) const;
 
-    void
-    flip(const CodewordKey &key);
+    // void
+    // flip(const CodewordKey &key);
 
     void
     clear();

@@ -19,16 +19,16 @@ CodewordStateTable::exists(const CodewordKey &key) const
 }
 
 
-void
-CodewordStateTable::flip(const CodewordKey &key)
-{
-    auto &state = table[key];
+// void
+// CodewordStateTable::flip(const CodewordKey &key)
+// {
+//     auto &state = table[key];
 
-    state.physicalFlipped =
-        !state.physicalFlipped;
+//     state.physicalFlipped =
+//         !state.physicalFlipped;
 
-    state.flipCount++;
-}
+//     state.flipCount++;
+// }
 
 
 void
