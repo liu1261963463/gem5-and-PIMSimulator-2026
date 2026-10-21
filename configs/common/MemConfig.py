@@ -219,11 +219,14 @@ def config_mem(options, system):
                 ),
                 filePath=getattr(
                     options,
-                    "pimsim_file_path",
+                    "pimsim_root",
                     "ext/pimsim/PIMSimulator",
                 ),
                 traceFile=getattr(options, "pimsim_trace_file", ""),
                 enableDebug=getattr(options, "pimsim_debug", False),
+                pimCycle=getattr(options, "pimsim_cycle", "1ns"),
+                pimChannels=getattr(options, "pimsim_channels", 16),
+                pimRanks=getattr(options, "pimsim_ranks", 1),
             )
 
             pim_ctrls.append(pim_mem)

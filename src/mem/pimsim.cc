@@ -32,6 +32,7 @@
 #include "debug/Drain.hh"
 #include "debug/PIMSim.hh"
 #include "sim/system.hh"
+#include <cmath>
 
 namespace gem5
 {
@@ -68,6 +69,14 @@ PIMSim::PIMSim(const Params &p)
         reliablePim != nullptr &&
             reliablePim->enabled()
     );
+
+    const double backendCycleTicks =
+        wrapper.clockPeriod() * sim_clock::as_int::ns;
+    fatal_if(pimCycle == 0 || backendCycleTicks < 1.0 ||
+                 std::fabs(static_cast<double>(pimCycle) - backendCycleTicks) > 1.0,
+             "PIMSim: --pimsim-cycle must match device INI tCK; "
+             "pimCycle=%llu ticks, backend=%.6f ticks",
+             static_cast<unsigned long long>(pimCycle), backendCycleTicks);
 
     DPRINTF(PIMSim,
             "Instantiated PIMSim: clock=%f ns, queue_size=%u, "
@@ -279,11 +288,11 @@ PIMSim::submitPIMOp(const PIMOp &op)
             "connected in PIMSim::submitPIMOp.");
     }
 
-    // 保留当前工程原有的延迟换算方式。
+    // 后端周期统一按 pimCycle 换算成 gem5 ticks。
     const uint64_t cycles =
         pim_cycles == 0 ? 1 : pim_cycles;
 
-    return cyclesToTicks(Cycles(cycles));
+    return cycles * pimCycle;
 }
  
  
@@ -401,9 +410,7 @@ PIMSim::tick()
         port.sendRetryReq();
     }
 
-    const Tick next_tick =
-        curTick() +
-        static_cast<Tick>(wrapper.clockPeriod() * sim_clock::as_int::ns);
+    const Tick next_tick = curTick() + pimCycle;
 
     schedule(tickEvent, next_tick);
 }
@@ -425,8 +432,7 @@ PIMSim::recvAtomic(PacketPtr pkt)
      * Approximate unloaded latency for atomic accesses.
      * This value does not affect detailed timing-mode evaluation.
      */
-    return static_cast<Tick>(50 * wrapper.clockPeriod() *
-                             sim_clock::as_int::ns);
+    return 50 * pimCycle;
 }
 
 void
@@ -625,9 +631,7 @@ PIMSim::readComplete(unsigned id, uint64_t addr, uint64_t cycle)
      * and future PIM commands may introduce extra internal cycles.
      */
     const auto expected_cycle =
-        divCeil(curTick() - startTick,
-                static_cast<Tick>(wrapper.clockPeriod() *
-                                  sim_clock::as_int::ns));
+        divCeil(curTick() - startTick, pimCycle);
 
     if (cycle != expected_cycle) {
         DPRINTF(PIMSim,
@@ -679,9 +683,7 @@ PIMSim::writeComplete(unsigned id, uint64_t addr, uint64_t cycle)
             id, addr, cycle);
 
     const auto expected_cycle =
-        divCeil(curTick() - startTick,
-                static_cast<Tick>(wrapper.clockPeriod() *
-                                  sim_clock::as_int::ns));
+        divCeil(curTick() - startTick, pimCycle);
 
     if (cycle != expected_cycle) {
         DPRINTF(PIMSim,

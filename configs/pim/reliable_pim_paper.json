@@ -1,0 +1,51 @@
+{
+  "profile_status": "reference_only_not_a_backend_configuration",
+  "source": "ECC Enabled Reliable and Performant Processing-in-Memory, Table II and Section V-D",
+  "dram": {
+    "standard": "DDR5-6400",
+    "chip_density_Gbit": 16,
+    "chip_width_bits": 4,
+    "channels": 8,
+    "ranks_per_channel": 4,
+    "banks_per_chip": 32
+  },
+  "pim": {
+    "banks_per_unit": 2,
+    "units_per_chip_derived": 16,
+    "mul_add_fpus_per_unit": 4,
+    "supported_paper_precisions": [
+      "BF16",
+      "FP16"
+    ],
+    "datapath_bits": 64,
+    "scratchpad_bytes_per_unit": 1024,
+    "instruction_issue_interval_tCK": 16
+  },
+  "timing_cycles": {
+    "tBL": 8,
+    "tCCDS": 8,
+    "tCCDL": 16,
+    "tCCDL_WR": 64,
+    "tCL": 48,
+    "tRC": 150,
+    "tWR": 96,
+    "tFAW": 40,
+    "tRCD": 48,
+    "tRAS": 104
+  },
+  "derived": {
+    "tCK_ns": 0.3125,
+    "burst_transfers_if_DDR_BL16": 16,
+    "off_chip_GBps_per_rank_paper": 25.6,
+    "on_chip_GBps_per_rank_paper": 204.8
+  },
+  "not_specified_in_table_II": [
+    "tRRDS",
+    "tRRDL",
+    "tRP",
+    "tCWL",
+    "refresh timings",
+    "row/column geometry"
+  ],
+  "backend_port_complete": false
+}

@@ -35,6 +35,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <utility>
 
@@ -158,7 +159,11 @@ namespace gem5
                 }
             }  
             _burstSize = 32;
-            _clockPeriod = 1.0;
+            float configuredTckNs = 0.0f;
+            pimsim->getIniFloat("tCK", &configuredTckNs);
+            fatal_if(!std::isfinite(configuredTckNs) || configuredTckNs <= 0.0f,
+                     "PIMSim: INI tCK must be positive and finite");
+            _clockPeriod = static_cast<double>(configuredTckNs);
             _queueSize = 32;
         }
 
