@@ -23,6 +23,23 @@ struct Codeword128
     unsigned parityBits = 8;
 };
 
+// 双CRC8解码的详细结果。
+// NORMAL/FLIPPED表示校验判定，不是无错误的绝对保证。
+struct DualCRC8Result
+{
+    // 当前Engine是否配置为CRC8模式。
+    bool supported = false;
+
+    // 是否为合法的8位CRC容器。
+    bool formatValid = false;
+
+    // true表示对应分支校验通过。
+    bool normalValid = false;
+    bool flippedValid = false;
+
+    // 默认采用保守结果。
+    DecodeResult result = DecodeResult::ALERT;
+};
 
 class PimEccEngine
 {
@@ -52,6 +69,11 @@ class PimEccEngine
     checkFlippedCRC8(
         const Codeword128 &cw) const;
 
+    // 返回两路校验状态和最终判定。
+    DualCRC8Result
+    dualDecodeCRC8(
+        const Codeword128 &cw) const;
+        
     DecodeResult
     dualDecode(
         const Codeword128 &cw) const;
