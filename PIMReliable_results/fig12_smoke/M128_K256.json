@@ -1,0 +1,11 @@
+{
+  "backend": "HBM2_diagnostic_not_paper_DDR5",
+  "M": 128, "K": 256, "M_padded": 1024, "K_padded": 256,
+  "tCK_ns": 1, "correct": true,
+  "weight_preload_cycles": 2774,
+  "kernel_including_upload_cycles": 1138,
+  "result_read_cycles": 514,
+  "host_reduction_timed": false,
+  "paper_without_overheads_available": false,
+  "paper_with_overheads_available": false
+}

@@ -21,3 +21,17 @@
    --pimsim-cycle=1ns \
    --pimsim-channels=16 \
    --pimsim-ranks=1
+
+
+
+####################################################################################
+该命令直接编译当前仓库中的后端源码，不依赖以前编译的 libpimsim.so，也不需要 gtest。
+
+然后执行小规模测试：
+
+python3 tools/fig12/run.py smoke \
+    --out PIMReliable_results/fig12_smoke
+
+
+python3 tools/fig12/run.py sweep \
+    --out PIMReliable_results/fig12_sweep

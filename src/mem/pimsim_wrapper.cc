@@ -239,8 +239,7 @@ namespace gem5
         //     }
         /**************************************************** */
 
-        uint64_t
-        // PIMSimWrapper::executePIM(const PIMOp &op)
+        uint64_t        
         PIMSimWrapper::executePIM(const PIMOp &op, PIMAccessSink sink)
         {
             // 不允许同一个wrapper嵌套启动采集。
@@ -303,23 +302,10 @@ namespace gem5
 
             switch (op.opcode) {
             case PIMOpcode::Gemv:
-                /*
-                * 当前不能这样调用：
-                *
-                *     kernel.executeGemv(op.src0, op.src1, op.dst, op.m, op.n, op.numTile);
-                *
-                * 因为 PIMSimulator 当前接口是：
-                *
-                *     executeGemv(NumpyBurstType* w_data,
-                *                 NumpyBurstType* i_data,
-                *                 bool is_tree)
-                *
-                * 也就是说，它需要真实的 NumpyBurstType 数据对象，
-                * 不是 row / m / n 参数。
-                *
-                * 第一阶段先返回固定延迟，保证编译通过。
-                */
-                return 1000;
+                fatal("PIMSim: GEMV MMIO data/result handling is not implemented. "
+                      "Fixed-cycle GEMV timing is invalid. "
+                      "Use tools/fig12/run.py for the verified backend diagnostic.");
+                return 0;
 
             case PIMOpcode::Add:
                 /*

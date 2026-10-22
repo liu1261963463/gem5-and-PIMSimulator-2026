@@ -1,0 +1,3 @@
+backend,M,K,M_padded,K_padded,tCK_ns,correct,weight_preload_cycles,kernel_including_upload_cycles,result_read_cycles,host_reduction_timed,paper_without_overheads_available,paper_with_overheads_available,useful_flops,kernel_including_upload_gflops,kernel_plus_readback_gflops
+HBM2_diagnostic_not_paper_DDR5,128,256,1024,256,1,True,2774,1138,514,False,False,False,65536,57.58875219683655,39.67070217917676
+HBM2_diagnostic_not_paper_DDR5,768,2048,1024,2048,1,True,22109,6951,181,False,False,False,3145728,452.5576176089771,441.07234997195735
