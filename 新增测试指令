@@ -35,3 +35,12 @@ python3 tools/fig12/run.py smoke \
 
 python3 tools/fig12/run.py sweep \
     --out PIMReliable_results/fig12_sweep
+
+
+
+########################################################################
+如果缺少绘图库，先执行：
+python3 -m pip install matplotlib
+画小规模测试图：
+python3 tools/fig12/run.py plot \
+    --out PIMReliable_results/fig12_smoke
