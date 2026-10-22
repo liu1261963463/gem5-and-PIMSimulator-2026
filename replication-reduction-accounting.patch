@@ -1,0 +1,356 @@
+--- /dev/null
++++ b/tools/fig12/account_overheads.py
+@@ -0,0 +1,192 @@
++#!/usr/bin/env python3
++"""Add an explicit HOST REDUCTION ESTIMATE to verified HBM2 measurements.
++
++Replication is already inside kernel_including_upload_cycles. Never add its
++derived bytes/bandwidth as another delay. This tool does not modify gem5 ticks.
++"""
++import argparse
++import csv
++import hashlib
++import json
++import math
++from pathlib import Path
++
++# Audited source/config maps from d3981fc. New implementations require re-audit.
++SOURCE_MAP_SHA256 = 'ce380f8300a568abf25b9a0b534cf838f188f7e4cf59621ce5bdc2398124e232'
++CONFIG_MAP_SHA256 = '36e156f8c0dec1562c3ad9728fd3642d2ec4f9865c3d15e481767207f4c7d5b2'
++BACKEND = 'HBM2_diagnostic_not_paper_DDR5'
++
++
++def map_digest(value):
++    encoded = json.dumps(value, sort_keys=True, separators=(',', ':')).encode()
++    return hashlib.sha256(encoded).hexdigest()
++
++
++def file_digest(path):
++    return hashlib.sha256(path.read_bytes()).hexdigest()
++
++
++def positive_int(row, key):
++    value = row[key]
++    if type(value) is not int or value <= 0:
++        raise ValueError(f'{key} must be a positive integer')
++    return value
++
++
++def account(row, ns_per_row, setup_ns):
++    if not math.isfinite(ns_per_row) or ns_per_row <= 0:
++        raise ValueError('host reduction ns per row must be positive and finite')
++    if not math.isfinite(setup_ns) or setup_ns < 0:
++        raise ValueError('host reduction setup ns must be nonnegative and finite')
++    if row['backend'] != BACKEND or row['correct'] is not True:
++        raise ValueError('only verified HBM2 diagnostic results are supported')
++    if row['host_reduction_timed'] is not False:
++        raise ValueError('host reduction may already be timed; refusing double counting')
++    if row['tCK_ns'] != 1:
++        raise ValueError('unexpected clock for the audited backend')
++    m, k = positive_int(row, 'M'), positive_int(row, 'K')
++    mp, kp = positive_int(row, 'M_padded'), positive_int(row, 'K_padded')
++    if m > 8192 or k > 8192 or mp != (m+1023)//1024*1024 or kp != (k+255)//256*256:
++        raise ValueError('unexpected dimensions or padding for audited kernel')
++    preload = positive_int(row, 'weight_preload_cycles') * row['tCK_ns']
++    kernel = positive_int(row, 'kernel_including_upload_cycles') * row['tCK_ns']
++    readback = positive_int(row, 'result_read_cycles') * row['tCK_ns']
++    # computeGemv: each output tile uploads all input bursts to 16 channels,
++    # one rank per channel. Broadcast to eight PIM blocks is internal.
++    upload_transactions = (mp // 1024) * (kp // 16) * 16
++    host_ns = setup_ns + mp * ns_per_row
++    measured_ns = kernel + readback
++    resident_ns = measured_ns + host_ns
++    cold_ns = preload + resident_ns
++    if not all(math.isfinite(v) for v in (host_ns, resident_ns, cold_ns)):
++        raise ValueError('host model overflow')
++    flops = 2*m*k
++    return {
++        'M': m, 'K': k, 'M_padded': mp, 'K_padded': kp,
++        'backend': BACKEND,
++        'derived_input_upload_transactions': upload_transactions,
++        'derived_input_upload_bytes': upload_transactions * 32,
++        'replication_already_in_kernel_time': True,
++        'additional_replication_ns': 0,
++        'derived_result_read_bytes': mp * 32,
++        'host_reduction_rows': mp,
++        'source_level_fp16_to_fp32_conversions': mp * 16,
++        'source_level_fp32_additions': mp * 16,
++        'modeled_output_bytes_fp32': mp * 4,
++        'weight_preload_simulated_ns': preload,
++        'kernel_including_upload_simulated_ns': kernel,
++        'result_read_simulated_ns': readback,
++        'backend_measured_ns': measured_ns,
++        'host_reduction_ns_per_row': ns_per_row,
++        'host_reduction_setup_ns': setup_ns,
++        'host_reduction_estimated_ns': host_ns,
++        'resident_weights_estimated_ns': resident_ns,
++        'cold_weights_estimated_ns': cold_ns,
++        'useful_flops': flops,
++        'backend_measured_gflops': flops / measured_ns,
++        'resident_weights_estimated_gflops': flops / resident_ns,
++        'cold_weights_estimated_gflops': flops / cold_ns,
++        'host_reduction_timed_in_simulator': False,
++        'host_reduction_modeled': True,
++        'paper_reproduction_complete': False,
++    }
++
++
++def load_results(folder):
++    meta_path = folder / 'manifest.json'
++    meta = json.loads(meta_path.read_text())
++    if meta['status'] != 'complete' or meta['backend'] != BACKEND:
++        raise ValueError('input must be a complete HBM2 diagnostic run')
++    if map_digest(meta['build']['sources']) != SOURCE_MAP_SHA256:
++        raise ValueError('source fingerprint differs: re-audit traffic/reduction accounting; do not bypass')
++    if map_digest(meta['configs']) != CONFIG_MAP_SHA256:
++        raise ValueError('configuration fingerprint differs: current assumptions do not apply')
++    cases = meta['cases']
++    if not cases or any(not isinstance(c, list) or len(c) != 2 or
++                        any(type(v) is not int or not 1 <= v <= 8192 for v in c)
++                        for c in cases):
++        raise ValueError('invalid case list')
++    if len({tuple(c) for c in cases}) != len(cases):
++        raise ValueError('duplicate cases')
++    fingerprints = {'manifest.json': file_digest(meta_path)}
++    rows = []
++    for m, k in cases:
++        path = folder / f'M{m}_K{k}.json'
++        row = json.loads(path.read_text())
++        if (row['M'], row['K']) != (m, k):
++            raise ValueError('case coordinates do not match filename')
++        fingerprints[path.name] = file_digest(path)
++        rows.append(row)
++    return rows, fingerprints
++
++
++def plot(rows, out, label):
++    import matplotlib
++    matplotlib.use('Agg')
++    import matplotlib.pyplot as plt
++    fig, ax = plt.subplots(figsize=(max(8, len(rows)*.6), 5.2))
++    x = list(range(len(rows)))
++    ax.bar([v-.18 for v in x], [r['backend_measured_gflops'] for r in rows], .36,
++           label='Simulated kernel incl. upload + readback')
++    ax.bar([v+.18 for v in x], [r['resident_weights_estimated_gflops'] for r in rows], .36,
++           label='Above + modeled host reduction')
++    ax.set_xticks(x, [f'{r["M"]}\n{r["K"]}' for r in rows], fontsize=8)
++    ax.set_xlabel('M (upper row), K (lower row); batch = 1')
++    ax.set_ylabel('Useful GFLOP/s')
++    ax.set_title('HBM2 + host reduction estimate (not paper Fig.12 reproduction)')
++    ax.legend(fontsize=8)
++    ax.set_axisbelow(True); ax.grid(axis='y', alpha=.25)
++    fig.text(.5,.03, f'Host scenario: {label}\n'
++             f'{rows[0]["host_reduction_ns_per_row"]:g} ns/padded row; '
++             f'{rows[0]["host_reduction_setup_ns"]:g} ns setup/GEMV; resident weights; no phase overlap.',
++             ha='center', fontsize=8)
++    fig.tight_layout(rect=(0,.1,1,1))
++    fig.savefig(out / 'replication_reduction_estimate.png', dpi=180)
++    plt.close(fig)
++
++
++def main():
++    p = argparse.ArgumentParser(description=__doc__)
++    p.add_argument('--input', required=True, type=Path)
++    p.add_argument('--out', required=True, type=Path)
++    p.add_argument('--host-reduction-ns-per-row', required=True, type=float)
++    p.add_argument('--host-reduction-setup-ns', type=float, default=0)
++    p.add_argument('--host-model-label', required=True,
++                   help='State calibration source or explicitly label the illustrative assumption')
++    p.add_argument('--plot', action='store_true')
++    a = p.parse_args()
++    if not a.host_model_label.strip():
++        p.error('--host-model-label cannot be empty')
++    source_rows, fingerprints = load_results(a.input)
++    rows = [account(r, a.host_reduction_ns_per_row, a.host_reduction_setup_ns)
++            for r in source_rows]
++    if a.out.exists() and any(a.out.iterdir()):
++        p.error('choose an empty output directory; source measurements must not be overwritten')
++    a.out.mkdir(parents=True, exist_ok=True)
++    with (a.out / 'accounted.csv').open('w', newline='') as stream:
++        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
++        writer.writeheader(); writer.writerows(rows)
++    metadata = {
++        'kind': 'simulated_backend_plus_explicit_host_estimate',
++        'baseline_commit': 'd3981fca792301536146412a2a4d9ed52bb5251b',
++        'input_directory': str(a.input.resolve()), 'input_sha256': fingerprints,
++        'host_model_label': a.host_model_label,
++        'host_reduction_ns_per_row': a.host_reduction_ns_per_row,
++        'host_reduction_setup_ns': a.host_reduction_setup_ns,
++        'traffic_counts_are_derived_not_measured_counters': True,
++        'replication_already_in_kernel_time': True,
++        'assumption': 'phases serialized; weights resident for resident column; host FP16->FP32 reduction',
++        'host_reduction_model_contract': 'per-row cost includes local buffer access, conversions, sum and FP32 output store; setup once per GEMV',
++        'host_reduction_timed_in_simulator': False,
++        'paper_reproduction_complete': False,
++        'cases': [[r['M'],r['K']] for r in rows],
++    }
++    (a.out / 'accounting_manifest.json').write_text(json.dumps(metadata, indent=2) + '\n')
++    if a.plot: plot(rows, a.out, a.host_model_label)
++    print(f'PASS: accounted {len(rows)} cases; replication NOT charged twice')
++    print(a.out / 'accounted.csv')
++    print('Host reduction is an explicit estimate, not a measured gem5 CPU latency.')
++
++
++if __name__ == '__main__':
++    main()
+--- /dev/null
++++ b/tools/fig12/test_account_overheads.py
+@@ -0,0 +1,52 @@
++import unittest
++from account_overheads import account
++
++
++def measured_case():
++    # Actual uploaded M=768,K=2048 measurement in commit d3981fc.
++    return dict(backend='HBM2_diagnostic_not_paper_DDR5', correct=True,
++                M=768, K=2048, M_padded=1024, K_padded=2048, tCK_ns=1,
++                weight_preload_cycles=22109, kernel_including_upload_cycles=6951,
++                result_read_cycles=181, host_reduction_timed=False)
++
++
++class AccountingTest(unittest.TestCase):
++    def test_no_double_count_and_resident_cold_distinction(self):
++        result = account(measured_case(), 5.0, 100.0)
++        self.assertEqual(result['backend_measured_ns'], 7132)
++        self.assertEqual(result['additional_replication_ns'], 0)
++        self.assertEqual(result['host_reduction_estimated_ns'], 5220)
++        self.assertEqual(result['resident_weights_estimated_ns'], 12352)
++        self.assertEqual(result['cold_weights_estimated_ns'], 34461)
++        # A 4096-byte vector uploaded once to each of 16 channels.
++        # Do not multiply by the eight internal PIM blocks again.
++        self.assertEqual(result['derived_input_upload_bytes'], 65536)
++        self.assertEqual(result['derived_result_read_bytes'], 32768)
++        self.assertEqual(result['source_level_fp32_additions'], 16384)
++
++    def test_host_cost_applies_to_padded_rows(self):
++        low = account(measured_case(), 1, 0)
++        high = account(measured_case(), 2, 0)
++        self.assertEqual(high['resident_weights_estimated_ns'] -
++                         low['resident_weights_estimated_ns'], 1024)
++        self.assertLess(high['resident_weights_estimated_gflops'],
++                        low['resident_weights_estimated_gflops'])
++
++    def test_reject_invalid_host_parameters(self):
++        for value in (0, -1, float('nan'), float('inf')):
++            with self.subTest(value=value), self.assertRaises(ValueError):
++                account(measured_case(), value, 0)
++        for value in (-1, float('nan'), float('inf')):
++            with self.subTest(setup=value), self.assertRaises(ValueError):
++                account(measured_case(), 1, value)
++
++    def test_reject_double_accounting_and_invalid_results(self):
++        for key, value in [('host_reduction_timed', True), ('correct', False),
++                           ('M_padded', 768), ('kernel_including_upload_cycles', 0)]:
++            row = measured_case(); row[key] = value
++            with self.subTest(key=key), self.assertRaises(ValueError):
++                account(row, 1, 0)
++
++
++if __name__ == '__main__':
++    unittest.main()
+--- /dev/null
++++ b/tools/fig12/REPLICATION_REDUCTION.md
+@@ -0,0 +1,103 @@
++# Replication 与 Reduction 的计时口径
++
++基线提交：d3981fca792301536146412a2a4d9ed52bb5251b。
++本工具复用已有完整 HBM2 GEMV 实测结果，新增显式的主机归约时间估算。
++不改变 gem5/PIMSimulator 模拟时间，不是完整 DDR5 Fig.12 复现。
++
++## 使用
++
++在仓库根目录执行：
++
++```bash
++python3 tools/fig12/test_account_overheads.py
++python3 tools/fig12/account_overheads.py \
++    --input PIMReliable_results/fig12_sweep \
++    --out PIMReliable_results/fig12_accounted_example \
++    --host-reduction-ns-per-row 5 \
++    --host-reduction-setup-ns 0 \
++    --host-model-label illustrative-not-calibrated-5ns-per-row \
++    --plot
++```
++
++**5 ns/行只是检查流程的示例假设，不是论文值，也不是 gem5 CPU 测量值。**
++脚本不提供默认每行时间，必须明确输入并用标签记录来源。
++如缺少 matplotlib，先执行 `python3 -m pip install matplotlib`，或省略 `--plot`。
++输出目录应为空；改用另一个场景时指定新目录。
++已有 20 组结果不必重新模拟；不需要重新编译 gem5 或 libpimsim。
++
++生成 accounted.csv、accounting_manifest.json，以及可选 PNG。
++不会覆盖原来的 JSON、CSV、manifest 或图。
++
++## 为什么复制不能再加一次
++
++`ext/pimsim/PIMSimulator/src/pim/PIMKernel.cpp` 中 `computeGemv()` 的
++`WRIO_TO_GRF_` 请求，在各 channel/rank 上传输入，并经共享的 GRF 广播路径
++送到该 rank 内的 PIM blocks。请求已经在 executeGemv/runPIM 阶段执行。
++因此 `kernel_including_upload_cycles` 包含这段复制，不能再按 bytes/bandwidth
++增加一个复制时间，也不能减去某个估算值来冒充纯计算周期。
++
++对于已核对的配置（16 channel、1 rank/channel、8 PIM blocks/rank）：
++
++```text
++输出 tile 数 = M_padded / 1024
++输入 burst 数 = K_padded / 16
++上传事务数 = 输出 tile 数 × 输入 burst 数 × 16
++上传字节数 = 上传事务数 × 32
++结果读回字节数 = M_padded × 32
++```
++
++这些是从已核对的循环和布局**推导**的流量，不是新增硬件计数器，不包含命令总线流量。
++不要再乘 8：八个 PIMBlock 的内部广播不是额外八份外部上传事务。
++脚本检查源文件和 INI 哈希指纹，配置/实现改变后会拒绝沿用公式。
++哈希记录用于识别受支持的测量版本，不是安全签名。
++
++## 为什么归约还需要增加时间
++
++原 probe 读回每个输出的 16 个 FP16 部分和，使用 float 累加。
++它运行在执行模拟器的主机上，没有推进模拟的 gem5 CPU 时间。
++不能直接使用 C++ 程序的墙钟耗时填入目标 CPU 的仿真时间。
++
++这里归约的是当前 HBM 内核每行的 16 个 lane 部分和，不是凭空假定有 16 个 bank 或 rank。
++未来若改变矩阵分布并需要额外跨 bank/rank 归约，必须同时更新通信和计算模型。
++
++原代码从 sum=0 开始执行 16 次加法；从数学上最少只需 15 次，
++但本脚本报告原源代码的 16 次加法和 16 次转换，并不声称这是机器指令数。
++归约遍历全部 M_padded 行，包含补零行；有效 FLOP 数仍只取 2*M*K。
++
++主机估算模型：
++
++```text
++T_host = setup_ns + M_padded × ns_per_row
++```
++
++ns_per_row 是每行归约的摊销时间，包括本地缓冲区读取、FP16→FP32 转换、
++累加，以及最终 FP32 结果保存；setup_ns 每个 GEMV 只计一次。
++它不再包含 PIM→主机的结果传输，该部分已在 result_read_cycles 中。
++模型假设各阶段顺序执行，没有 CPU/PIM 重叠、异步流水或排队争用。
++归约结果在主机侧，若后续还要写回 PIM，需另外模拟该写回，当前不含此项。
++
++## 总延迟与吞吐率
++
++```text
++T_backend = (kernel_including_upload_cycles + result_read_cycles) × tCK_ns
++T_resident = T_backend + T_host
++T_cold = weight_preload_cycles × tCK_ns + T_resident
++GFLOP/s = (2*M*K) / T_ns
++```
++
++resident 假设权重已预置，适合讨论权重驻留后的单次 GEMV。
++cold 加上本 probe 实际模拟的权重预置阶段；不代表完整应用启动、文件读取或所有主机准备工作。
++两者分列，避免把权重装载算进去后仍称为驻留权重的性能。
++绘图只比较 T_backend 与 T_resident；冷权重场景在 CSV 中。
++
++## 正式实验如何获得归约参数
++
++必须选定目标 CPU、频率、线程数、向量化实现、缓冲区大小和缓存状态。
++在该目标 CPU 的测量或 gem5 CPU 仿真中，对同样的 16 路 FP16→FP32 归约
++单独计时，并将启动开销与每行摊销开销分开。参考答案检查不应计入算子时间。
++应检查不同 M 下线性模型是否成立；若缓存、并行度或带宽造成明显非线性，
++需要按规模建立模型，不能强行沿用一个常数。
++在完成校准前，结果只用于参数敏感性分析；不得声称已模拟主机 CPU 或复现论文曲线。
++
++`host_reduction_timed_in_simulator=false` 会保留，另以
++`host_reduction_modeled=true` 说明归约开销已经计入估算总延迟。

@@ -1,0 +1,119 @@
+{
+  "kind": "simulated_backend_plus_explicit_host_estimate",
+  "baseline_commit": "d3981fca792301536146412a2a4d9ed52bb5251b",
+  "input_directory": "/home/wangchengcheng/gem5-stable/PIMReliable_results/fig12_sweep",
+  "input_sha256": {
+    "manifest.json": "96cbee1586522268d135ff70208c305c177e928805dfb012ce8116d052dfe895",
+    "M768_K2048.json": "3c975b38ea88060582d0bb85f825d75be280cf698e38b2ad638278854f4fa358",
+    "M768_K3072.json": "00f9eb0c7835a833a97c2d41bfa8233531ba0e7b0724ece41c62eccbef6fa91f",
+    "M768_K4096.json": "b6bf2eed1092fb8423fab318d4d5ef78de2f492816b423a41384233db46ddf69",
+    "M768_K8192.json": "fe892232eca6cbab1c811beb7ef56405f72107c9ed53dc196ce548b7ccada816",
+    "M2048_K2048.json": "20ebd21c47fb8ba8cdbcad4a1651fcadccb649c1f443bd97a5abf8db65b7e16f",
+    "M2048_K3072.json": "8e9d0d7b61d654970a3c8c930d9040b6fd936ba04ecccf2f67fef6d57455cbdb",
+    "M2048_K4096.json": "4039d8c781d5dbbf8eef0d3701100e709ed647492d5efb44b03ee3ff479f2949",
+    "M2048_K8192.json": "d4ab79d5765480fb24267bca7a510ea8461ef1c79d85735383c71bbbaaa4d896",
+    "M3072_K2048.json": "4f43c01c4639faee19ba4f337bc34a7dcea4c0711e263414d7aaea7f7f2fc89c",
+    "M3072_K3072.json": "ce451f69cd2934b4a992b7eab9c7d631c83cb4b795706618e29d3cbfed4950ab",
+    "M3072_K4096.json": "99c8f90569478fc3126507ae672d4d2dd06980920f98d7aec2cf94e89cac5c90",
+    "M3072_K8192.json": "df173512ab92838dd26d7707ec9dcfda5ea3d6216752c5f63c1bdc683a89fee8",
+    "M4096_K2048.json": "6605cb23ae257fee438167688823587d7f56cc07c32e2f8d13a9bf9083d719bc",
+    "M4096_K3072.json": "1a96db2e7d90f21c7be37917e506998e3171072a6c5cf4aa80765025dc6b7c89",
+    "M4096_K4096.json": "1387293496debd29699a1b31ebb1270781269993bfbe0841cf623aa3388ca28b",
+    "M4096_K8192.json": "aabe327f50afff46d4b4016f8bcf40f8c8b8253dcea682535c596b3e8a6564e2",
+    "M8192_K2048.json": "9f0369a9f75939756172588f2444350726c0d1f0c57d775d6c9605d93ecf56b5",
+    "M8192_K3072.json": "c5fe59019206ce2227289c853328fbccfdfd83b5ae4cab28837f99db9340b14a",
+    "M8192_K4096.json": "c7d3e67a727281a8b44f5f37995ecbe72c4107d46db248311f942ceb0f6ef5a3",
+    "M8192_K8192.json": "ff6dfcec9b463a80c33db09c5b3e7c650840282df0017d6788a92c94baed810d"
+  },
+  "host_model_label": "illustrative-not-calibrated-5ns-per-row",
+  "host_reduction_ns_per_row": 5.0,
+  "host_reduction_setup_ns": 0.0,
+  "traffic_counts_are_derived_not_measured_counters": true,
+  "replication_already_in_kernel_time": true,
+  "assumption": "phases serialized; weights resident for resident column; host FP16->FP32 reduction",
+  "host_reduction_model_contract": "per-row cost includes local buffer access, conversions, sum and FP32 output store; setup once per GEMV",
+  "host_reduction_timed_in_simulator": false,
+  "paper_reproduction_complete": false,
+  "cases": [
+    [
+      768,
+      2048
+    ],
+    [
+      768,
+      3072
+    ],
+    [
+      768,
+      4096
+    ],
+    [
+      768,
+      8192
+    ],
+    [
+      2048,
+      2048
+    ],
+    [
+      2048,
+      3072
+    ],
+    [
+      2048,
+      4096
+    ],
+    [
+      2048,
+      8192
+    ],
+    [
+      3072,
+      2048
+    ],
+    [
+      3072,
+      3072
+    ],
+    [
+      3072,
+      4096
+    ],
+    [
+      3072,
+      8192
+    ],
+    [
+      4096,
+      2048
+    ],
+    [
+      4096,
+      3072
+    ],
+    [
+      4096,
+      4096
+    ],
+    [
+      4096,
+      8192
+    ],
+    [
+      8192,
+      2048
+    ],
+    [
+      8192,
+      3072
+    ],
+    [
+      8192,
+      4096
+    ],
+    [
+      8192,
+      8192
+    ]
+  ]
+}
